@@ -3,7 +3,7 @@
 FlexGen is a high-throughput generation engine for running large language models with limited GPU memory (e.g., a 16GB T4 GPU or a 24GB RTX3090 gaming card!). FlexGen allows **high-throughput** generation by IO-efficient offloading, compression and **large effective batch sizes**.
 
 ## Recent Changes (It is getting better thanks to you🙏)
-We are glad the public has been really excited about FlexGen. However, our work (repo&paper) is still under preparation and not ready for public release / announcement yet.
+We are glad the public has been really excited about FlexGen. However, our work is still under preparation and not ready for public release / announcement yet.
 Thanks to early feedback about this project, we realized that early versions of this README and our paper were a bit unclear about the purpose of FlexGen.
 **This is a preliminary effort to lower the resource requirements of LLMs, but it also has a lot of limitations and does not aim to replace use cases when sufficient resources are available.**
 Our primary contributions are increasing throughput on single GPU instances - by effectively increasing the batch size.
@@ -50,7 +50,7 @@ FlexGen is mostly optimized for throughput-oriented batch processing settings (e
 
 ## Benchmark Results
 ### Generation Throughput (token/s)
-The corresponding effective batch size is in the bracket, and please see [here](benchmark/batch_size_table.md) for more details.
+The corresponding effective batch size is in the bracket. Please see [here](benchmark/batch_size_table.md) for more details.
 | System | OPT-6.7B | OPT-30B | OPT-175B |
 | ------ | -------- | ------- | -------- |
 | Hugging Face Accelerate   | 25.12 (2 on gpu) | 0.62 (8 on cpu	) | 0.01 (2 on disk) |
@@ -65,13 +65,13 @@ The corresponding effective batch size is in the bracket, and please see [here](
 
 How to [reproduce](benchmark/flexgen).
 
-### Latency-throughput Trade-off
+### Latency-Throughput Trade-Off
 The figure below shows the latency and throughput trade-off of three offloading-based systems on OPT-175B (left) and OPT-30B (right).
 FlexGen achieves a new Pareto-optimal frontier with significatnly higher maximum throughput for both models.
 Other systems cannot further increase throughput due to out-of-memory.
 "FlexGen(c)" is FlexGen with compression.
 
-<img src="https://github.com/FMInference/FlexGen/blob/main/docs/throughput_vs_latency.jpg" alt="logo" width="500"></img>
+<img src="https://github.com/FMInference/FlexGen/blob/main/docs/throughput_vs_latency.jpg" alt="image" width="500"></img>
 
 ## How It Works
 FlexGen can be flexibly configured under various hardware resource constraints by aggregating memory and computation from the GPU, CPU, and disk. Through a linear programming optimizer, it searches for the best pattern to store and access the tensors, including weights, activations, and attention key/value (KV) cache. FlexGen further compresses both weights and KV cache to 4 bits with negligible accuracy loss. 
@@ -80,20 +80,28 @@ One key idea of FlexGen is to play the latency-throughput trade-off. Achieving l
 but the I/O efficiency of offloading can be greatly boosted for throughput-oriented scenarios (see the figure above).
 FlexGen utilizes a block schedule to reuse weight and overlap I/O with computation, as shown in figure (b) below, while other baseline systems use an inefficient row-by-row schedule, as shown in figure (a) below.
 
-<img src="https://github.com/FMInference/FlexGen/raw/main/docs/block_schedule.jpg" alt="logo" width="500"></img>
+<img src="https://github.com/FMInference/FlexGen/raw/main/docs/block_schedule.jpg" alt="image" width="500"></img>
 
 ## Install
 Requirements:  
  - PyTorch >= 1.12 [(Help)](https://pytorch.org/get-started/locally/)
 
-Instructions:
+### Method 1: With pip
+```
+pip install flexgen
+```
+
+### Method 2: From source
 ```
 git clone https://github.com/FMInference/FlexGen.git
 cd FlexGen
-pip3 install -e .
+pip install -e .
+```
 
-# (Optional) Install openmpi for multi-gpu execution
-# sudo apt install openmpi-bin
+### Optional
+Install openmpi for multi-gpu execution.
+```
+sudo apt install openmpi-bin
 ```
 
 ## Get Started with a Single GPU
@@ -134,40 +142,47 @@ For example, if you have 2 GPUs but the aggregated GPU memory is less than the m
 See examples [here](https://github.com/FMInference/FlexGen/tree/main/benchmark/flexgen#distributed-gpus).
 
 ## API Example
-We demonstrate the usage of FlexGen API in [apps/completion.py](apps/completion.py).
+We demonstrate the usage of FlexGen API in [completion.py](flexgen/apps/completion.py).
 This example shows how to run generation for two sentences.
 To get the best throughput out of FlexGen, you typically need to batch more sentences.
 
 ### Generation API
 FlexGen has a generation API following the style of Hugging Face's transformers.
-https://github.com/FMInference/FlexGen/blob/0af54017fc0ea0f2599339ffe782ba5af98fa920/apps/completion.py#L58-L62
+```python
+output_ids = model.generate(
+	input_ids,
+	do_sample=True,
+	temperature=0.7,
+	max_new_tokens=32,
+	stop=stop)
+```
 
 ### Example Commands
 You can use the example commands below.
-If you do not have enough GPU/CPU memory, see the [Handle Out-of-memory](#handle-out-of-memory) section.
+If you do not have enough GPU/CPU memory, see the [Handle Out-Of-Memory](#handle-out-of-memory) section.
 
 ```
 # Complete with OPT-6.7B. You need at least 15GB of GPU memory.
-python3 completion.py --model facebook/opt-6.7b
+python3 -m flexgen.apps.completion --model facebook/opt-6.7b
 ```
 
 ```
 # Complete with OPT-30B. You need about 90GB of CPU memory.
-python3 completion.py --model facebook/opt-30b --percent 0 100 100 0 100 0
+python3 -m flexgen.apps.completion --model facebook/opt-30b --percent 0 100 100 0 100 0
 ```
 
 ```
 # Complete with instruction-tuned OPT-IML-MAX-30B. You need about 90GB of CPU memory.
-python3 completion.py --model facebook/opt-iml-max-30b --percent 0 100 100 0 100 0
+python3 -m flexgen.apps.completion --model facebook/opt-iml-max-30b --percent 0 100 100 0 100 0
 ```
 
-### Handle Out-of-memory
+### Handle Out-Of-Memory
 If you do not have enough GPU/CPU memory, here are a few things you can try.
 They save more memory but run slower.
 
 - Do not pin weights by adding `--pin-weight 0`. This can reduce the weight memory usage on CPU by around 20% or more.
 - Enable weight compression by adding `--compress-weight`. This can reduce the weight memory usage by around 70%.
-- Offload weights to disk by using `--percent 0 0 100 0 100 0`. This requires very little CPU and GPU memory.
+- Offload all weights to disk by using `--percent 0 0 100 0 100 0`. This requires very little CPU and GPU memory.
 
 ## Roadmap
 We plan to work on the following features. Community contributions are welcome.
@@ -177,5 +192,3 @@ We plan to work on the following features. Community contributions are welcome.
 - [ ] Add a text summarization application and more throughput-oriented applications.
 - [ ] Support more models (BLOOM, CodeGen, GLM)
 - [ ] Release the cost model and policy optimizer
-- [ ] Release a pip installable package
-
